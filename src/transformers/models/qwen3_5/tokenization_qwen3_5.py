@@ -22,19 +22,10 @@ from ...utils import logging
 
 logger = logging.get_logger(__name__)
 
-VOCAB_FILES_NAMES = {
-    "vocab_file": "vocab.json",
-    "merges_file": "merges.txt",
-    "tokenizer_file": "tokenizer.json",
-}
-
-MAX_MODEL_INPUT_SIZES = {"qwen/qwen-tokenizer": 32768}
-
 PRETOKENIZE_REGEX = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
 
 
 class Qwen3_5Tokenizer(TokenizersBackend):
-    vocab_files_names = VOCAB_FILES_NAMES
     model_input_names = ["input_ids", "attention_mask"]
     model = BPE
 
@@ -98,8 +89,6 @@ class Qwen3_5Tokenizer(TokenizersBackend):
             add_prefix_space=add_prefix_space,
             **kwargs,
         )
-
-        self.add_tokens([AddedToken(token, special=True) for token in self.all_special_tokens])
 
 
 __all__ = ["Qwen3_5Tokenizer"]
