@@ -530,7 +530,7 @@ class Qwen3_5MoeGatedDeltaNet(nn.Module):
         mixed_qkv = mixed_qkv.transpose(1, 2)
 
         z = self.in_proj_z(hidden_states)
-        z = z.reshape(z.size(0), z.size(1), -1, self.head_v_dim)
+        z = z.reshape(batch_size, seq_len, -1, self.head_v_dim)
 
         b = self.in_proj_b(hidden_states)
         a = self.in_proj_a(hidden_states)
@@ -570,9 +570,10 @@ class Qwen3_5MoeGatedDeltaNet(nn.Module):
             ],
             dim=-1,
         )
-        query = query.reshape(query.shape[0], query.shape[1], -1, self.head_k_dim)
-        key = key.reshape(key.shape[0], key.shape[1], -1, self.head_k_dim)
-        value = value.reshape(value.shape[0], value.shape[1], -1, self.head_v_dim)
+
+        query = query.reshape(batch_size, seq_len, -1, self.head_k_dim)
+        key = key.reshape(batch_size, seq_len, -1, self.head_k_dim)
+        value = value.reshape(batch_size, seq_len, -1, self.head_v_dim)
 
         beta = b.sigmoid()
         # If the model is loaded in fp16, without the .float() here, A might be -inf
@@ -609,13 +610,11 @@ class Qwen3_5MoeGatedDeltaNet(nn.Module):
         if cache_params is not None:
             cache_params.recurrent_states[self.layer_idx] = last_recurrent_state
 
-        z_shape_og = z.shape
         # reshape input data into 2D tensor
-        core_attn_out = core_attn_out.reshape(-1, core_attn_out.shape[-1])
-        z = z.reshape(-1, z.shape[-1])
+        core_attn_out = core_attn_out.reshape(-1, self.head_v_dim)
+        z = z.reshape(-1, self.head_v_dim)
         core_attn_out = self.norm(core_attn_out, z)
-        core_attn_out = core_attn_out.reshape(z_shape_og)
-        core_attn_out = core_attn_out.reshape(core_attn_out.shape[0], core_attn_out.shape[1], -1)
+        core_attn_out = core_attn_out.reshape(batch_size, seq_len, -1)
 
         output = self.out_proj(core_attn_out)
         return output
@@ -886,20 +885,20 @@ class Qwen3_5MoeSparseMoeBlock(nn.Module):
 
 
 class Qwen3_5MoeRMSNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-6):
+    def __init__(self, hidden_size, eps: float = 1e-6) -> None:
         super().__init__()
         self.eps = eps
-        self.weight = nn.Parameter(torch.zeros(dim))
+        self.weight = nn.Parameter(torch.zeros(hidden_size))
 
     def _norm(self, x):
         return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
 
-    def forward(self, x):
-        output = self._norm(x.float())
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        output = self._norm(hidden_states.float())
         # Llama does x.to(float16) * w whilst Qwen3_5Moe is (x * w).to(float16)
         # See https://github.com/huggingface/transformers/pull/29402
         output = output * (1.0 + self.weight.float())
-        return output.type_as(x)
+        return output.type_as(hidden_states)
 
     def extra_repr(self):
         return f"{tuple(self.weight.shape)}, eps={self.eps}"
@@ -1314,6 +1313,7 @@ class Qwen3_5MoeVisionModel(Qwen3_5MoePreTrainedModel):
         patch_pos_embeds = torch.cat(patch_pos_embeds_permute)
         return patch_pos_embeds
 
+    @check_model_inputs
     def forward(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor, **kwargs) -> torch.Tensor:
         """
         Args:
