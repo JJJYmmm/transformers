@@ -18,10 +18,9 @@ import torch
 from ... import initialization as init
 from ...cache_utils import Cache
 from ...configuration_utils import PreTrainedConfig, layer_type_validation
-from ...modeling_flash_attention_utils import FlashAttentionKwargs
 from ...modeling_layers import GradientCheckpointingLayer
 from ...modeling_rope_utils import RopeParameters, RotaryEmbeddingConfigMixin
-from ...processing_utils import Unpack
+from ...modeling_utils import PreTrainedModel
 from ...utils import logging
 from ..qwen3_5.configuration_qwen3_5 import Qwen3_5VisionConfig
 from ..qwen3_5.modeling_qwen3_5 import (
@@ -35,6 +34,7 @@ from ..qwen3_5.modeling_qwen3_5 import (
 )
 from ..qwen3_next.modeling_qwen3_next import (
     Qwen3NextAttention,
+    Qwen3NextDecoderLayer,
     Qwen3NextDynamicCache,
     Qwen3NextExperts,
     Qwen3NextForCausalLM,
@@ -335,9 +335,9 @@ class Qwen3_5MoeRMSNorm(Qwen3NextRMSNorm):
     pass
 
 
-class Qwen3_5MoeDecoderLayer(GradientCheckpointingLayer):
+class Qwen3_5MoeDecoderLayer(Qwen3NextDecoderLayer):
     def __init__(self, config: Qwen3_5MoeTextConfig, layer_idx: int):
-        super().__init__()
+        GradientCheckpointingLayer.__init__(self)
         self.hidden_size = config.hidden_size
         self.layer_type = config.layer_types[layer_idx]
         if self.layer_type == "linear_attention":
@@ -348,57 +348,12 @@ class Qwen3_5MoeDecoderLayer(GradientCheckpointingLayer):
         self.input_layernorm = Qwen3_5MoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = Qwen3_5MoeRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        position_embeddings: tuple[torch.Tensor, torch.Tensor],
-        attention_mask: torch.Tensor | None = None,
-        position_ids: torch.LongTensor | None = None,
-        past_key_values: Cache | None = None,
-        cache_position: torch.LongTensor | None = None,
-        **kwargs: Unpack[FlashAttentionKwargs],
-    ) -> torch.FloatTensor:
-        residual = hidden_states
-
-        hidden_states = self.input_layernorm(hidden_states)
-
-        # Token Mixer
-        if self.layer_type == "linear_attention":
-            hidden_states = self.linear_attn(
-                hidden_states=hidden_states,
-                cache_params=past_key_values,
-                cache_position=cache_position,
-                attention_mask=attention_mask,
-            )
-        elif self.layer_type == "full_attention":
-            # Self Attention
-            hidden_states, _ = self.self_attn(
-                hidden_states=hidden_states,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                past_key_values=past_key_values,
-                cache_position=cache_position,
-                position_embeddings=position_embeddings,
-                **kwargs,
-            )
-
-        hidden_states = residual + hidden_states
-
-        # Fully Connected
-        residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        # For the MoE layers, we need to unpack
-        if isinstance(hidden_states, tuple):
-            hidden_states, _ = hidden_states
-        hidden_states = residual + hidden_states
-
-        return hidden_states
-
 
 class Qwen3_5MoePreTrainedModel(Qwen3NextPreTrainedModel):
+    _no_split_modules = ["Qwen3_5MoeDecoderLayer", "Qwen3_5MoeVisionBlock"]
+
     def _init_weights(self, module):
-        super()._init_weights(module)
+        PreTrainedModel._init_weights(self, module)
         if isinstance(module, Qwen3_5MoeGatedDeltaNet):
             init.ones_(module.dt_bias)
             init.copy_(module.A_log, torch.empty_like(module.A_log).uniform_(0, 16).log_())

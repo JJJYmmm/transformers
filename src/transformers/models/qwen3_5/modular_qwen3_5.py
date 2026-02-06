@@ -39,6 +39,7 @@ from ..qwen3_next.modeling_qwen3_next import (
     Qwen3NextGatedDeltaNet,
     Qwen3NextMLP,
     Qwen3NextModel,
+    Qwen3NextPreTrainedModel,
     Qwen3NextRMSNorm,
     apply_mask_to_padding_states,
 )
@@ -557,25 +558,17 @@ class Qwen3_5DecoderLayer(GradientCheckpointingLayer):
         return hidden_states
 
 
-class Qwen3_5PreTrainedModel(PreTrainedModel):
+class Qwen3_5PreTrainedModel(Qwen3NextPreTrainedModel):
     config: Qwen3_5Config
-    base_model_prefix = "model"
-    supports_gradient_checkpointing = True
     _no_split_modules = ["Qwen3_5DecoderLayer", "Qwen3_5VisionBlock"]
-    _skip_keys_device_placement = "past_key_values"
-    _supports_flash_attn = True
-    _supports_attention_backend = True
-    _supports_sdpa = True
-    _keys_to_ignore_on_load_unexpected = [r"^mtp.*"]
     _can_record_outputs = {
         "hidden_states": Qwen3_5DecoderLayer,
         "attentions": Qwen3_5Attention,
     }
-    _is_stateful = True
 
     @torch.no_grad()
     def _init_weights(self, module):
-        super()._init_weights(module)
+        PreTrainedModel._init_weights(self, module)
         if isinstance(module, Qwen3_5GatedDeltaNet):
             init.ones_(module.dt_bias)
             init.copy_(module.A_log, torch.empty_like(module.A_log).uniform_(0, 16).log_())
