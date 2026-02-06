@@ -18,10 +18,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from ...configuration_utils import PreTrainedConfig, layer_type_validation
-from ...modeling_rope_utils import RopeParameters, RotaryEmbeddingConfigMixin
+from ...modeling_rope_utils import RopeParameters
 
 
-class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
+class Qwen3_5MoeTextConfig(PreTrainedConfig):
     r"""
     This is the configuration class to store the configuration of a [`Qwen3_5MoeTextModel`]. It is used to instantiate a
     Qwen3.5-MoE model according to the specified arguments, defining the model architecture.
@@ -113,7 +113,6 @@ class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
     """
 
     model_type = "qwen3_5_moe_text"
-    base_config_key = "text_config"
     keys_to_ignore_at_inference = ["past_key_values"]
 
     base_model_tp_plan = {
@@ -121,12 +120,12 @@ class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
         "layers.*.self_attn.k_proj": "colwise",
         "layers.*.self_attn.v_proj": "colwise",
         "layers.*.self_attn.o_proj": "rowwise",
-        "layers.*.mlp.experts.*.gate_proj": "colwise",
-        "layers.*.mlp.experts.*.up_proj": "colwise",
-        "layers.*.mlp.experts.*.down_proj": "rowwise",
-        "layers.*.mlp.shared_experts.gate_proj": "colwise",
-        "layers.*.mlp.shared_experts.up_proj": "colwise",
-        "layers.*.mlp.shared_experts.down_proj": "rowwise",
+        "layers.*.mlp.experts.gate_up_proj": "local_rowwise",
+        "layers.*.mlp.experts.down_proj": "local_rowwise",
+        "layers.*.mlp.experts": "gather",
+        "layers.*.mlp.shared_expert.gate_proj": "colwise",
+        "layers.*.mlp.shared_expert.up_proj": "colwise",
+        "layers.*.mlp.shared_expert.down_proj": "rowwise",
         "layers.*.mlp.gate_proj": "colwise",
         "layers.*.mlp.up_proj": "colwise",
         "layers.*.mlp.down_proj": "rowwise",
@@ -136,6 +135,7 @@ class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
         "layers": (["hidden_states", "attention_mask"], ["hidden_states"]),
         "norm": (["hidden_states"], ["hidden_states"]),
     }
+    base_config_key = "text_config"
 
     def __init__(
         self,
@@ -182,6 +182,7 @@ class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
         self.attention_dropout = attention_dropout
         self.head_dim = head_dim
         self.rope_parameters = rope_parameters
+        kwargs.setdefault("partial_rotary_factor", 0.25)  # assign default for BC
 
         self.layer_types = layer_types
         if self.layer_types is None:
@@ -198,20 +199,13 @@ class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
         self.linear_value_head_dim = linear_value_head_dim
         self.linear_num_key_heads = linear_num_key_heads
         self.linear_num_value_heads = linear_num_value_heads
-
-        # MoE arguments
         self.moe_intermediate_size = moe_intermediate_size
         self.shared_expert_intermediate_size = shared_expert_intermediate_size
         self.num_experts_per_tok = num_experts_per_tok
         self.num_experts = num_experts
         self.output_router_logits = output_router_logits
         self.router_aux_loss_coef = router_aux_loss_coef
-
-        super().__init__(
-            tie_word_embeddings=tie_word_embeddings,
-            ignore_keys_at_rope_validation={"mrope_section", "mrope_interleaved"},
-            **kwargs,
-        )
+        super().__init__(tie_word_embeddings=tie_word_embeddings, **kwargs)
 
 
 class Qwen3_5MoeVisionConfig(PreTrainedConfig):
@@ -231,14 +225,9 @@ class Qwen3_5MoeVisionConfig(PreTrainedConfig):
         temporal_patch_size=2,
         out_hidden_size=3584,
         num_position_embeddings=2304,
-        deepstack_visual_indexes=[8, 16, 24],
         initializer_range=0.02,
         **kwargs,
     ):
-        """
-        Qwen3.5 series disable Deepstack used in Qwen3VL temporally,
-        so `deepstack_visual_indexes` is discarded.
-        """
         super().__init__(**kwargs)
 
         self.depth = depth

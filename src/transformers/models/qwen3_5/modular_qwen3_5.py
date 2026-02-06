@@ -21,18 +21,18 @@ from torch import nn
 
 from ... import initialization as init
 from ...cache_utils import Cache
-from ...configuration_utils import PreTrainedConfig, layer_type_validation
 from ...integrations import use_kernelized_func
 from ...masking_utils import create_causal_mask
 from ...modeling_layers import GradientCheckpointingLayer
 from ...modeling_outputs import BaseModelOutputWithPast
-from ...modeling_rope_utils import RopeParameters, RotaryEmbeddingConfigMixin
+from ...modeling_rope_utils import RopeParameters
 from ...modeling_utils import PreTrainedModel
 from ...processing_utils import Unpack
 from ...utils import TransformersKwargs, auto_docstring, logging
 from ...utils.generic import check_model_inputs
 from ..qwen2.modeling_qwen2 import rotate_half
 from ..qwen3.modeling_qwen3 import Qwen3ForCausalLM
+from ..qwen3_next.configuration_qwen3_next import Qwen3NextConfig
 from ..qwen3_next.modeling_qwen3_next import (
     Qwen3NextAttention,
     Qwen3NextDynamicCache,
@@ -57,7 +57,7 @@ from ..qwen3_vl.modeling_qwen3_vl import (
 logger = logging.get_logger(__name__)
 
 
-class Qwen3_5TextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
+class Qwen3_5TextConfig(Qwen3NextConfig):
     r"""
     This is the configuration class to store the configuration of a [`Qwen3_5TextModel`]. It is used to instantiate a
     Qwen3_5 model according to the specified arguments, defining the model architecture.
@@ -139,22 +139,6 @@ class Qwen3_5TextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
 
     model_type = "qwen3_5_text"
     base_config_key = "text_config"
-    keys_to_ignore_at_inference = ["past_key_values"]
-
-    base_model_tp_plan = {
-        "layers.*.self_attn.q_proj": "colwise",
-        "layers.*.self_attn.k_proj": "colwise",
-        "layers.*.self_attn.v_proj": "colwise",
-        "layers.*.self_attn.o_proj": "rowwise",
-        "layers.*.mlp.gate_proj": "colwise",
-        "layers.*.mlp.up_proj": "colwise",
-        "layers.*.mlp.down_proj": "rowwise",
-    }
-    base_model_pp_plan = {
-        "embed_tokens": (["input_ids"], ["inputs_embeds"]),
-        "layers": (["hidden_states", "attention_mask"], ["hidden_states"]),
-        "norm": (["hidden_states"], ["hidden_states"]),
-    }
 
     def __init__(
         self,
@@ -182,43 +166,20 @@ class Qwen3_5TextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
         layer_types=None,
         **kwargs,
     ):
-        self.vocab_size = vocab_size
-        self.max_position_embeddings = max_position_embeddings
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
-        self.num_key_value_heads = num_key_value_heads
-        self.hidden_act = hidden_act
-        self.initializer_range = initializer_range
-        self.rms_norm_eps = rms_norm_eps
-        self.use_cache = use_cache
-        self.attention_bias = attention_bias
-        self.attention_dropout = attention_dropout
-        self.head_dim = head_dim
-        self.rope_parameters = rope_parameters
-
-        self.layer_types = layer_types
-        if self.layer_types is None:
-            interval_pattern = kwargs.get("full_attention_interval", 4)
-            self.layer_types = [
-                "linear_attention" if bool((i + 1) % interval_pattern) else "full_attention"
-                for i in range(self.num_hidden_layers)
-            ]
-        layer_type_validation(self.layer_types, self.num_hidden_layers)
-
-        # linear attention part
-        self.linear_conv_kernel_dim = linear_conv_kernel_dim
-        self.linear_key_head_dim = linear_key_head_dim
-        self.linear_value_head_dim = linear_value_head_dim
-        self.linear_num_key_heads = linear_num_key_heads
-        self.linear_num_value_heads = linear_num_value_heads
-
         super().__init__(
             tie_word_embeddings=tie_word_embeddings,
             ignore_keys_at_rope_validation={"mrope_section", "mrope_interleaved"},
             **kwargs,
         )
+        del self.decoder_sparse_step
+        del self.norm_topk_prob
+        del self.mlp_only_layers
+        del self.moe_intermediate_size
+        del self.shared_expert_intermediate_size
+        del self.num_experts_per_tok
+        del self.num_experts
+        del self.output_router_logits
+        del self.router_aux_loss_coef
 
 
 class Qwen3_5VisionConfig(Qwen3VLVisionConfig):
@@ -226,13 +187,21 @@ class Qwen3_5VisionConfig(Qwen3VLVisionConfig):
 
     def __init__(
         self,
-        **super_kwargs,
+        depth=27,
+        hidden_size=1152,
+        hidden_act="gelu_pytorch_tanh",
+        intermediate_size=4304,
+        num_heads=16,
+        in_channels=3,
+        patch_size=16,
+        spatial_merge_size=2,
+        temporal_patch_size=2,
+        out_hidden_size=3584,
+        num_position_embeddings=2304,
+        initializer_range=0.02,
+        **kwargs,
     ):
-        """
-        Qwen3.5 series disable Deepstack used in Qwen3VL temporally,
-        so `deepstack_visual_indexes` is discarded.
-        """
-        super().__init__(**super_kwargs)
+        super().__init__(**kwargs)
         del self.deepstack_visual_indexes
 
 

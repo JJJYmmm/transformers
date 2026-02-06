@@ -16,10 +16,8 @@
 import torch
 
 from ... import initialization as init
-from ...cache_utils import Cache
-from ...configuration_utils import PreTrainedConfig, layer_type_validation
 from ...modeling_layers import GradientCheckpointingLayer
-from ...modeling_rope_utils import RopeParameters, RotaryEmbeddingConfigMixin
+from ...modeling_rope_utils import RopeParameters
 from ...modeling_utils import PreTrainedModel
 from ...utils import logging
 from ..qwen3_5.configuration_qwen3_5 import Qwen3_5VisionConfig
@@ -32,6 +30,7 @@ from ..qwen3_5.modeling_qwen3_5 import (
     Qwen3_5VisionModel,
     Qwen3_5VisionRotaryEmbedding,
 )
+from ..qwen3_next.configuration_qwen3_next import Qwen3NextConfig
 from ..qwen3_next.modeling_qwen3_next import (
     Qwen3NextAttention,
     Qwen3NextDecoderLayer,
@@ -54,7 +53,7 @@ from ..qwen3_vl_moe.modeling_qwen3_vl_moe import (
 logger = logging.get_logger(__name__)
 
 
-class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
+class Qwen3_5MoeTextConfig(Qwen3NextConfig):
     r"""
     This is the configuration class to store the configuration of a [`Qwen3_5MoeTextModel`]. It is used to instantiate a
     Qwen3.5-MoE model according to the specified arguments, defining the model architecture.
@@ -147,28 +146,6 @@ class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
 
     model_type = "qwen3_5_moe_text"
     base_config_key = "text_config"
-    keys_to_ignore_at_inference = ["past_key_values"]
-
-    base_model_tp_plan = {
-        "layers.*.self_attn.q_proj": "colwise",
-        "layers.*.self_attn.k_proj": "colwise",
-        "layers.*.self_attn.v_proj": "colwise",
-        "layers.*.self_attn.o_proj": "rowwise",
-        "layers.*.mlp.experts.*.gate_proj": "colwise",
-        "layers.*.mlp.experts.*.up_proj": "colwise",
-        "layers.*.mlp.experts.*.down_proj": "rowwise",
-        "layers.*.mlp.shared_experts.gate_proj": "colwise",
-        "layers.*.mlp.shared_experts.up_proj": "colwise",
-        "layers.*.mlp.shared_experts.down_proj": "rowwise",
-        "layers.*.mlp.gate_proj": "colwise",
-        "layers.*.mlp.up_proj": "colwise",
-        "layers.*.mlp.down_proj": "rowwise",
-    }
-    base_model_pp_plan = {
-        "embed_tokens": (["input_ids"], ["inputs_embeds"]),
-        "layers": (["hidden_states", "attention_mask"], ["hidden_states"]),
-        "norm": (["hidden_states"], ["hidden_states"]),
-    }
 
     def __init__(
         self,
@@ -201,50 +178,15 @@ class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
         layer_types=None,
         **kwargs,
     ):
-        self.vocab_size = vocab_size
-        self.max_position_embeddings = max_position_embeddings
-        self.hidden_size = hidden_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
-        self.num_key_value_heads = num_key_value_heads
-        self.hidden_act = hidden_act
-        self.initializer_range = initializer_range
-        self.rms_norm_eps = rms_norm_eps
-        self.use_cache = use_cache
-        self.attention_bias = attention_bias
-        self.attention_dropout = attention_dropout
-        self.head_dim = head_dim
-        self.rope_parameters = rope_parameters
-
-        self.layer_types = layer_types
-        if self.layer_types is None:
-            interval_pattern = kwargs.get("full_attention_interval", 4)
-            self.layer_types = [
-                "linear_attention" if bool((i + 1) % interval_pattern) else "full_attention"
-                for i in range(self.num_hidden_layers)
-            ]
-        layer_type_validation(self.layer_types, self.num_hidden_layers)
-
-        # linear attention part
-        self.linear_conv_kernel_dim = linear_conv_kernel_dim
-        self.linear_key_head_dim = linear_key_head_dim
-        self.linear_value_head_dim = linear_value_head_dim
-        self.linear_num_key_heads = linear_num_key_heads
-        self.linear_num_value_heads = linear_num_value_heads
-
-        # MoE arguments
-        self.moe_intermediate_size = moe_intermediate_size
-        self.shared_expert_intermediate_size = shared_expert_intermediate_size
-        self.num_experts_per_tok = num_experts_per_tok
-        self.num_experts = num_experts
-        self.output_router_logits = output_router_logits
-        self.router_aux_loss_coef = router_aux_loss_coef
-
         super().__init__(
             tie_word_embeddings=tie_word_embeddings,
             ignore_keys_at_rope_validation={"mrope_section", "mrope_interleaved"},
             **kwargs,
         )
+        del self.intermediate_size
+        del self.decoder_sparse_step
+        del self.norm_topk_prob
+        del self.mlp_only_layers
 
 
 class Qwen3_5MoeVisionConfig(Qwen3_5VisionConfig):
