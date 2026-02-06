@@ -202,9 +202,14 @@ class Qwen3_5VisionConfig(PreTrainedConfig):
         temporal_patch_size=2,
         out_hidden_size=3584,
         num_position_embeddings=2304,
+        deepstack_visual_indexes=[8, 16, 24],
         initializer_range=0.02,
         **kwargs,
     ):
+        """
+        Qwen3.5 series disable Deepstack used in Qwen3VL temporally,
+        so `deepstack_visual_indexes` is discarded.
+        """
         super().__init__(**kwargs)
 
         self.depth = depth

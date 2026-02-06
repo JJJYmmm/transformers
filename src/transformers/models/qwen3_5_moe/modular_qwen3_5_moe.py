@@ -23,6 +23,7 @@ from ...modeling_layers import GradientCheckpointingLayer
 from ...modeling_rope_utils import RopeParameters, RotaryEmbeddingConfigMixin
 from ...processing_utils import Unpack
 from ...utils import logging
+from ..qwen3_5.configuration_qwen3_5 import Qwen3_5VisionConfig
 from ..qwen3_5.modeling_qwen3_5 import (
     Qwen3_5GatedDeltaNet,
     Qwen3_5MLP,
@@ -41,7 +42,7 @@ from ..qwen3_next.modeling_qwen3_next import (
     Qwen3NextRMSNorm,
     Qwen3NextSparseMoeBlock,
 )
-from ..qwen3_vl.configuration_qwen3_vl import Qwen3VLConfig, Qwen3VLVisionConfig
+from ..qwen3_vl.configuration_qwen3_vl import Qwen3VLConfig
 from ..qwen3_vl_moe.modeling_qwen3_vl_moe import (
     Qwen3VLMoeCausalLMOutputWithPast,
     Qwen3VLMoeForConditionalGeneration,
@@ -246,7 +247,7 @@ class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
         )
 
 
-class Qwen3_5MoeVisionConfig(Qwen3VLVisionConfig):
+class Qwen3_5MoeVisionConfig(Qwen3_5VisionConfig):
     pass
 
 

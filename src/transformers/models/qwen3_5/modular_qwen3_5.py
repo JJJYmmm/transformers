@@ -42,7 +42,7 @@ from ..qwen3_next.modeling_qwen3_next import (
     Qwen3NextRMSNorm,
     apply_mask_to_padding_states,
 )
-from ..qwen3_vl.configuration_qwen3_vl import Qwen3VLConfig
+from ..qwen3_vl.configuration_qwen3_vl import Qwen3VLVisionConfig, Qwen3VLConfig
 from ..qwen3_vl.modeling_qwen3_vl import (
     Qwen3VLForConditionalGeneration,
     Qwen3VLModel,
@@ -220,40 +220,19 @@ class Qwen3_5TextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
         )
 
 
-class Qwen3_5VisionConfig(PreTrainedConfig):
+class Qwen3_5VisionConfig(Qwen3VLVisionConfig):
     model_type = "qwen3_5"
-    base_config_key = "vision_config"
 
     def __init__(
         self,
-        depth=27,
-        hidden_size=1152,
-        hidden_act="gelu_pytorch_tanh",
-        intermediate_size=4304,
-        num_heads=16,
-        in_channels=3,
-        patch_size=16,
-        spatial_merge_size=2,
-        temporal_patch_size=2,
-        out_hidden_size=3584,
-        num_position_embeddings=2304,
-        initializer_range=0.02,
-        **kwargs,
+        **super_kwargs,
     ):
-        super().__init__(**kwargs)
-
-        self.depth = depth
-        self.hidden_size = hidden_size
-        self.hidden_act = hidden_act
-        self.intermediate_size = intermediate_size
-        self.num_heads = num_heads
-        self.in_channels = in_channels
-        self.patch_size = patch_size
-        self.spatial_merge_size = spatial_merge_size
-        self.temporal_patch_size = temporal_patch_size
-        self.out_hidden_size = out_hidden_size
-        self.num_position_embeddings = num_position_embeddings
-        self.initializer_range = initializer_range
+        """
+        Qwen3.5 series disable Deepstack used in Qwen3VL temporally,
+        so `deepstack_visual_indexes` is discarded.
+        """
+        super().__init__(**super_kwargs)
+        del self.deepstack_visual_indexes
 
 
 class Qwen3_5Config(Qwen3VLConfig):

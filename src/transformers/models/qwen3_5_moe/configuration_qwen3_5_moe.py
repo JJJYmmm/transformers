@@ -235,6 +235,10 @@ class Qwen3_5MoeVisionConfig(PreTrainedConfig):
         initializer_range=0.02,
         **kwargs,
     ):
+        """
+        Qwen3.5 series disable Deepstack used in Qwen3VL temporally,
+        so `deepstack_visual_indexes` is discarded.
+        """
         super().__init__(**kwargs)
 
         self.depth = depth
@@ -249,7 +253,6 @@ class Qwen3_5MoeVisionConfig(PreTrainedConfig):
         self.out_hidden_size = out_hidden_size
         self.num_position_embeddings = num_position_embeddings
         self.initializer_range = initializer_range
-        self.deepstack_visual_indexes = deepstack_visual_indexes
 
 
 class Qwen3_5MoeConfig(PreTrainedConfig):
