@@ -20,7 +20,7 @@ from ...cache_utils import Cache
 from ...configuration_utils import PreTrainedConfig, layer_type_validation
 from ...modeling_flash_attention_utils import FlashAttentionKwargs
 from ...modeling_layers import GradientCheckpointingLayer
-from ...modeling_rope_utils import RopeParameters
+from ...modeling_rope_utils import RopeParameters, RotaryEmbeddingConfigMixin
 from ...processing_utils import Unpack
 from ...utils import logging
 from ..qwen3_5.modeling_qwen3_5 import (
@@ -53,7 +53,7 @@ from ..qwen3_vl_moe.modeling_qwen3_vl_moe import (
 logger = logging.get_logger(__name__)
 
 
-class Qwen3_5MoeTextConfig(PreTrainedConfig):
+class Qwen3_5MoeTextConfig(PreTrainedConfig, RotaryEmbeddingConfigMixin):
     r"""
     This is the configuration class to store the configuration of a [`Qwen3_5MoeTextModel`]. It is used to instantiate a
     Qwen3.5-MoE model according to the specified arguments, defining the model architecture.
