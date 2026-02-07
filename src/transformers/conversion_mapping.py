@@ -352,6 +352,21 @@ def _build_checkpoint_conversion_mapping():
     mapping["exaone_moe"] = mapping["qwen2_moe"].copy()
     mapping["exaone_moe"] += [WeightRenaming("mlp.e_score_correction_bias", "mlp.gate.e_score_correction_bias")]
 
+    # for qwen3.5 text-only mode compatibility
+    mapping["qwen3_5_text"] = [
+        WeightRenaming(
+            source_patterns="model.language_model.",
+            target_patterns="model.",
+        ),
+    ]
+    mapping["qwen3_5_moe_text"] = mapping["qwen2_moe"].copy()
+    mapping["qwen3_5_moe_text"] += [
+        WeightRenaming(
+            source_patterns="model.language_model.",
+            target_patterns="model.",
+        ),
+    ]
+
     for model_type, base_pattern in _MODEL_TO_CONVERSION_PATTERN.items():
         if model_type in mapping:
             continue
