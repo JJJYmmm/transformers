@@ -17,6 +17,7 @@ import torch
 
 from ... import initialization as init
 from ...modeling_layers import GradientCheckpointingLayer
+from ...modeling_outputs import BaseModelOutputWithPooling
 from ...modeling_rope_utils import RopeParameters
 from ...modeling_utils import PreTrainedModel
 from ...utils import logging
@@ -176,11 +177,15 @@ class Qwen3_5MoeTextConfig(Qwen3NextConfig):
         output_router_logits=False,
         router_aux_loss_coef=0.001,
         layer_types=None,
+        pad_token_id: int | None = None,
+        bos_token_id: int | None = None,
+        eos_token_id: int | None = None,
+        ignore_keys_at_rope_validation={"mrope_section", "mrope_interleaved"},
         **kwargs,
     ):
+        kwargs["ignore_keys_at_rope_validation"] = ignore_keys_at_rope_validation
         super().__init__(
             tie_word_embeddings=tie_word_embeddings,
-            ignore_keys_at_rope_validation={"mrope_section", "mrope_interleaved"},
             **kwargs,
         )
         del self.intermediate_size
@@ -394,6 +399,18 @@ class Qwen3_5MoeForConditionalGeneration(Qwen3VLMoeForConditionalGeneration):
         "A woman in a plaid shirt sits on a sandy beach at sunset, smiling as she gives a high-five to a yellow Labrador Retriever wearing a harness. The ocean waves roll in the background."
         ```"""
         super().forward(**super_kwargs)
+
+    def get_video_features(
+        self,
+        **super_kwargs,
+    ) -> tuple | BaseModelOutputWithPooling:
+        return super().get_video_features(**super_kwargs)
+
+    def get_image_features(
+        self,
+        **super_kwargs,
+    ) -> tuple | BaseModelOutputWithPooling:
+        return super().get_image_features(**super_kwargs)
 
 
 __all__ = [
